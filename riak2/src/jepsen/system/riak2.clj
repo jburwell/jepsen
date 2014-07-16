@@ -2,7 +2,8 @@
    (:require [clojure.tools.logging     :refer [info]]
              [jepsen.client             :as client]
              [jepsen.db                 :as db])
-   (:import [com.basho.riak.client.core RiakCluster$Builder]))
+   (:import [com.basho.riak.client.core RiakCluster$Builder]
+            [com.basho.riak.client.core RiakNode$Builder]))
 
 (def db
   (reify db/DB
@@ -27,7 +28,8 @@
   client/Client
   (setup! [this test node]
     (info "Setting up a client for node " node)
-    (let [client (.. (RiakCluster$Builder. node) build)])
+    (let [riak_node (..  (RiakNode$Builder.) (withRemoteAddress node))
+          client (.. (RiakCluster$Builder. riak_node) build)])
     (assoc this :client client))
   
   (invoke! [this test op]
