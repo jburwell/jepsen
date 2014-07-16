@@ -30,12 +30,16 @@
                   :exclusions [org.slf4j/slf4j-api
                                org.slf4j-log4j12
                                com.google.guava/guava]]]
-  :profiles {:riak {:dependencies
+  :profiles {:riak1 {:dependencies
                     [[com.basho.riak/riak-client "1.4.4"
                       :exclusions [com.fasterxml.jackson.core/jackson-core
                                    org.apache.httpcomponents/httpclient]]]
                     :source-paths ["riak/src"]
                     :test-paths ["riak/test"]}
+             :riak2 {:dependencies
+                     [[com.basho.riak/riak-client "2.0.0-SNAPSHOT"]]
+                     :source-paths ["riak2/src"]
+                     :test-paths ["riak2/test"]}
              :rabbitmq {:dependencies
                         [[com.novemberain/langohr "2.7.1"
                           :exclusions [com.google.guava/guava]]]
