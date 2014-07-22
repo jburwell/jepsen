@@ -20,7 +20,7 @@
 
 (def set-bucket-type "set-type")
 
-(defn- generate-random-name
+(defn- generate-random-name []
   (-> (UUID/randomUUID) .toString))
 
 (defn- create-bucket
@@ -44,21 +44,26 @@
                 :name      "riak2-dt-set"
                 :os        debian/os
                 :db        db
-                :client    '(create-set-client test-set)
+                :client    (create-set-client test-set)
                 :model     (model/set)
                 :checker   (checker/compose {:html   timeline/html
                                              :linear checker/linearizable})
                 :nemesis   (nemesis/partition-random-halves)
                 :generator (gen/phases
-                            (->> gen/cas
+                            (->> (range)
+                                 (map (f [x] {:type "invoke"
+                                              :f    :add
+                                              :value x}))
+                                 gen/seq
+                                 (gen/stagger 1/10)
                                  (gen/delay 1)
                                  (gen/nemesis
                                   (gen/seq
-                                   (cycle [(gen/sleep 5)
+                                   (cycle [(gen/sleep 30)
                                            {:type :info :f :start}
-                                           (gen/sleep 5)
+                                           (gen/sleep 200)
                                            {:type :info :f :stop}])))
-                                 (gen/time-limit 20))
+                                 (gen/time-limit 400))
                             (gen/nemesis
                              (gen/once {:type :info :f :stop}))
                             (gen/clients
