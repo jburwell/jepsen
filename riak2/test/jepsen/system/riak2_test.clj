@@ -13,7 +13,29 @@
             [jepsen.generator :as gen]
             [jepsen.nemesis   :as nemesis]
             [jepsen.store     :as store]
-            [jepsen.report    :as report]))
+            [jepsen.report    :as report])
+   (:import [java.util UUID]
+            [com.basho.riak.client.core.query Location]
+            [com.basho.riak.client.core.query Namespace]))
+
+(def set-bucket-type "set-type")
+
+(defn- generate-random-name
+  (-> (UUID/randomUUID) .toString))
+
+(defn- create-bucket
+  [type name]
+  (-> (Namespace. type name)))
+
+(defn- create-random-bucket
+  [type]
+  (create-bucket type (generate-random-name)))
+
+(defn- create-random-set
+  []
+  (-> (Location. (create-random-bucket set-bucket-type) (generate-random-name))))
+
+(def test-set (create-random-set))
 
 (deftest register-test
   (let [test (run!
@@ -22,7 +44,7 @@
                 :name      "riak2-dt-set"
                 :os        debian/os
                 :db        db
-                :client    (create-set-client)
+                :client    '(create-set-client test-set)
                 :model     (model/set)
                 :checker   (checker/compose {:html   timeline/html
                                              :linear checker/linearizable})

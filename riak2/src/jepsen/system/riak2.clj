@@ -2,12 +2,11 @@
    (:require [clojure.tools.logging     :refer [info]]
              [jepsen.client             :as client]
              [jepsen.db                 :as db])
-   (:import [java.nio.charset Charset]
-            [java.util UUID]
-            [com.basho.riak.client.api RiakClient]
-            [com.basho.riak.client.core.query Namespace]))
-
-(def set-bucket-type "set-type")
+   (:import [com.basho.riak.client.api RiakClient]
+            [com.basho.riak.client.api.commands FetchSet$Builder]
+            [com.basho.riak.client.api.commands UpdateSet$Builder]
+            [com.basho.riak.client.api.commands.datatypes SetUpdate]
+            [com.basho.riak.client.core.util BinaryValue]))
 
 (def db
   (reify db/DB
@@ -32,33 +31,31 @@
   [symbol]
   (apply str (rest (str symbol))))
 
-(defn- create-bucket
-  [type name]
-  (-> (Namespace. type name)))
-
-(defn- create-random-bucket
-  [type]
-  (create-bucket type (-> (UUID/randomUUID) .toString)))
-
 (defn- start-riak-client
     [host]
-    (RiakClient/newClient (cons host)))
+    (RiakClient/newClient (cons host ())))
 
-(defrecord CreateSetClient [client bucket]
+(defrecord CreateSetClient [client set]
   client/Client
   (setup! [this test host]
     (info "Setting up a client for node " host)
     (let [riak-client (start-riak-client (symbol-to-str host))]
-      (CreateSetClient. riak-client bucket)))
+      (CreateSetClient. riak-client set)))
     
   (invoke! [this test op]
     (case (:f op)
-      :add ()
-      :read ()))
+      :add ((let [set-update-command (SetUpdate. )]
+              (.add set-update-command :value)
+              (-> (client)  (.execute
+                  (-> (UpdateSet$Builder. set set-update-command) .build)))))
+      :read ((let [set-fetch-command (-> (FetchSet$Builder. set) .build)]
+             (-> (client)
+                 (.execute set-fetch-command)
+                 (.getDataType)
+                 (.view))))))
   
   (teardown! [_ test]
     (.close client)))
 
-(defn create-set-client []
-    (let [bucket (create-random-bucket set-bucket-type)]
-        (CreateSetClient. nil, bucket)))
+(defn create-set-client [set]
+  (CreateSetClient. nil, set))
