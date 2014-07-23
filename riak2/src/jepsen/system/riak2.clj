@@ -49,7 +49,7 @@
             :add ((let [set-update-command (SetUpdate. )]
                    (.add set-update-command ':value)
                      (.execute client 
-                        (-> (UpdateSet$Builder. set set-update-command) .build))))
+                        (-> (UpdateSet$Builder. set set-update-command) .build)))
                      (assoc op :type :ok))
             :read ((let [set-fetch-command (-> (FetchSet$Builder. set) .build)]
                    (-> (client)
