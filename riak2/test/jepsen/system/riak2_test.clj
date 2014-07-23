@@ -51,7 +51,7 @@
                 :nemesis   (nemesis/partition-random-halves)
                 :generator (gen/phases
                             (->> (range)
-                                 (map (f [x] {:type "invoke"
+                                 (map (fnn [x] {:type "invoke"
                                               :f    :add
                                               :value x}))
                                  gen/seq
