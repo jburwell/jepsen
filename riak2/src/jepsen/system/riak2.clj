@@ -2,7 +2,8 @@
    (:require [clojure.tools.logging     :refer [info]]
              [jepsen.client             :as client]
              [jepsen.db                 :as db])
-   (:import [com.basho.riak.client.api RiakClient]
+   (:import [java.util.concurrent ExecutionException]
+            [com.basho.riak.client.api RiakClient]
             [com.basho.riak.client.api.commands FetchSet$Builder]
             [com.basho.riak.client.api.commands UpdateSet$Builder]
             [com.basho.riak.client.api.commands.datatypes SetUpdate]
@@ -43,16 +44,23 @@
       (CreateSetClient. riak-client set)))
     
   (invoke! [this test op]
-    (case (:f op)
-      :add ((let [set-update-command (SetUpdate. )]
-              (.add set-update-command :value)
-              (-> (client)  (.execute
-                  (-> (UpdateSet$Builder. set set-update-command) .build)))))
-      :read ((let [set-fetch-command (-> (FetchSet$Builder. set) .build)]
-             (-> (client)
-                 (.execute set-fetch-command)
-                 (.getDataType)
-                 (.view))))))
+    (try
+        (case (:f op)
+            :add ((let [set-update-command (SetUpdate. )]
+                   (.add set-update-command :value)
+                     (-> (client) (.execute
+                                  (-> (UpdateSet$Builder. set set-update-command) .build))))
+                     (assoc op :type :ok))
+            :read ((let [set-fetch-command (-> (FetchSet$Builder. set) .build)]
+                   (-> (client)
+                       (.execute set-fetch-command)
+                       (.getDataType)
+                       (.view)))
+                   (assoc op :type :ok)))
+        (catch ExecutionException e
+          (assoc op :type :fail :value (-> (e) .getCause)))
+        (catch InterruptedException e
+          (assoc op :type :fail :value e))))
   
   (teardown! [_ test]
     (.close client)))
