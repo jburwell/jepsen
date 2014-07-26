@@ -37,7 +37,7 @@
 
 (def test-set (create-random-set))
 
-(deftest register-test
+(deftest create-test
   (let [test (run!
               (assoc
                 noop-test
@@ -47,16 +47,16 @@
                 :client    (create-set-client test-set)
                 :model     (model/set)
                 :checker   (checker/compose {:html   timeline/html
-                                             :linear checker/linearizable})
+                                             :set    checker/set})
                 :nemesis   (nemesis/partition-random-halves)
                 :generator (gen/phases
                             (->> (range)
-                                 (map (fnn [x] {:type "invoke"
+                                 (map (fn [x] {:type "invoke"
                                               :f    :add
                                               :value x}))
                                  gen/seq
                                  (gen/stagger 1/10)
-                                 (gen/delay 1)
+                                 (gen/delay 5)
                                  (gen/nemesis
                                   (gen/seq
                                    (cycle [(gen/sleep 30)
@@ -69,4 +69,4 @@
                             (gen/clients
                              (gen/once {:type :invoke :f :read})))))]
     (is (:valid? (:results test)))
-        (report/linearizability (:linear (:results test)))))
+    (pprint (:results test))))

@@ -29,12 +29,37 @@
 )
 
 (defn- symbol-to-str
-  [symbol]
-  (apply str (rest (str symbol))))
+    [symbol]
+    (apply str (rest (str symbol))))
+
+(defn- parse-int
+    [value]
+    (Integer/parseInt value))
+
+(defn- binaryvalue-to-int
+    [value]
+    (->> value .toString parse-int))
 
 (defn- start-riak-client
     [host]
     (RiakClient/newClient (cons host ())))
+
+(defn- add-to-set
+    [client set value]
+    (let [set-update-command (SetUpdate. )]
+        (.add set-update-command (str value))
+        (.execute client 
+            (-> (UpdateSet$Builder. set set-update-command) .build))))
+
+(defn- fetch-set
+    [client set]
+    (let [set-fetch-command (-> (FetchSet$Builder. set) .build)]
+       (into (sorted-set)
+            (map binaryvalue-to-int
+                (-> client
+                    (.execute set-fetch-command)
+                    .getDatatype
+                    .view)))))
 
 (defrecord CreateSetClient [client set]
   client/Client
@@ -46,17 +71,11 @@
   (invoke! [this test op]
     (try
         (case (:f op)
-            :add ((let [set-update-command (SetUpdate. )]
-                   (.add set-update-command ':value)
-                     (.execute client 
-                        (-> (UpdateSet$Builder. set set-update-command) .build)))
-                     (assoc op :type :ok))
-            :read ((let [set-fetch-command (-> (FetchSet$Builder. set) .build)]
-                   (-> (client)
-                       (.execute set-fetch-command)
-                       (.getDataType)
-                       (.view)))
-                   (assoc op :type :ok)))
+            :add  (do
+                    (add-to-set client set (:value op))
+                    (assoc op :type :ok))
+            :read (let [results (fetch-set client set)]
+                    (assoc op :type :ok :value results)))
         (catch ExecutionException e
           (assoc op :type :fail :value (-> (e) .getCause)))
         (catch InterruptedException e
