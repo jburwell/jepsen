@@ -1,7 +1,9 @@
 (ns jepsen.system.riak2
-   (:require [clojure.tools.logging     :refer [info]]
-             [jepsen.client             :as client]
-             [jepsen.db                 :as db])
+  (:require [clojure.tools.logging     :refer [info]]
+            [jepsen.control            :as c]
+            [jepsen.client             :as client]
+            [jepsen.db                 :as db]
+            [jepsen.util               :refer [timeout]])
    (:import [java.util.concurrent ExecutionException]
             [com.basho.riak.client.api RiakClient]
             [com.basho.riak.client.api.commands FetchSet$Builder]
@@ -44,6 +46,22 @@
     [host]
     (RiakClient/newClient (cons host ())))
 
+(def default-handoff-wait-secs 300)
+
+(defn- wait-for-handoff-completion
+  [host timeout-secs]
+  (timeout (* 1000 timeout-secs)
+           (throw (IllegalStateException.
+                   "Timed out waiting for handoffs to complete"))
+           (loop []
+             (when
+                 (try
+                   (c/on host
+                         (.contains (c/sudo "riak-admin transfers") "No transfers active"))
+                   true
+                   (catch Exception e (throw e)))
+               (recur)))))
+
 (defn- add-to-set
     [client set value]
     (let [set-update-command (SetUpdate. )]
@@ -74,7 +92,8 @@
             :add  (do
                     (add-to-set client set (:value op))
                     (assoc op :type :ok))
-            :read (let [results (fetch-set client set)]
+            :read (wait-for-handoff-completion (:node test) default-handoff-wait-secs)
+                  (let [results (fetch-set client set)]
                     (assoc op :type :ok :value results)))
         (catch ExecutionException e
           (assoc op :type :fail :value (-> (e) .getCause)))
