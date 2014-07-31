@@ -1,5 +1,6 @@
 (ns jepsen.system.riak2
   (:require [clojure.tools.logging     :refer [info]]
+            [clojure.stacktrace        :as st]
             [jepsen.control            :as c]
             [jepsen.client             :as client]
             [jepsen.db                 :as db]
@@ -49,15 +50,15 @@
 (def default-handoff-wait-secs 300)
 
 (defn- wait-for-handoff-completion
-  [host timeout-secs]
+  [timeout-secs]
+  (info "Waiting up to" timeout-secs "seconds for handoffs to complete.")
   (timeout (* 1000 timeout-secs)
            (throw (IllegalStateException.
                    "Timed out waiting for handoffs to complete"))
            (loop []
              (when
                  (try
-                   (c/on host
-                         (.contains (c/sudo "riak-admin transfers") "No transfers active"))
+                   (.contains (c/sudo "riak-admin transfers") "No transfers active")
                    true
                    (catch Exception e (throw e)))
                (recur)))))
@@ -92,13 +93,18 @@
             :add  (do
                     (add-to-set client set (:value op))
                     (assoc op :type :ok))
-            :read (wait-for-handoff-completion (:node test) default-handoff-wait-secs)
-                  (let [results (fetch-set client set)]
-                    (assoc op :type :ok :value results)))
+            :read (do
+                    (c/on-many (:nodes test)
+                        (wait-for-handoff-completion default-handoff-wait-secs))
+                    (let [results (fetch-set client set)]
+                        (assoc op :type :ok :value results))))
         (catch ExecutionException e
-          (assoc op :type :fail :value (-> (e) .getCause)))
+	  (info (st/print-stack-trace (st/root-cause e)))
+          (assoc op :type :fail :value (.getCause e)))
         (catch InterruptedException e
-          (assoc op :type :fail :value e))))
+          (assoc op :type :fail :value e))
+        (catch RuntimeException e
+          (assoc op :type :fail :value (.getMessage e)))))
   
   (teardown! [_ test]
     (.close client)))

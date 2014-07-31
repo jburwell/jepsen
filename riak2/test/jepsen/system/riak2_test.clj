@@ -56,7 +56,7 @@
                                               :value x}))
                                  gen/seq
                                  (gen/stagger 1/10)
-                                 (gen/delay 5)
+                                 (gen/delay 1)
                                  (gen/nemesis
                                   (gen/seq
                                    (cycle [(gen/sleep 30)
